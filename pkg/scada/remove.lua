@@ -12,3 +12,4 @@ if fs.exists("/coordinator") then fs.delete("/coordinator") print("coordinator d
 if fs.exists("/reactor-plc") then fs.delete("/reactor-plc") print("reactor-plc deleted") end
 if fs.exists("/rtu") then fs.delete("/rtu") print("rtu deleted") end
 if fs.exists("/pocket") then fs.delete("/pocket") print("pocket deleted") end
+if fs.exists("/startup.bak.lua") then fs.rename("/startup.bak.lua") end return
