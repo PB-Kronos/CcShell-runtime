@@ -1,10 +1,10 @@
 local args = { ... }
 
 -- =====================
--- CONFIG (settings-based)
+-- CONFIG
 -- =====================
-local REPO = settings.get("repo") or "https://raw.githubusercontent.com/PB-Kronos/CcShell-runtime/main/pkg"
-local DB_PATH = settings.get("db_path") or "/var/kpkg/db.json"
+local REPO = "https://raw.githubusercontent.com/PB-Kronos/CcShell-runtime/main/pkg"
+local DB_PATH = "/var/kpkg/db.json"
 
 -- =====================
 -- DB
@@ -20,9 +20,8 @@ local function loadDB()
 end
 
 local function saveDB(db)
-    local dir = fs.getDir(DB_PATH)
-    if dir and dir ~= "" and not fs.exists(dir) then
-        fs.makeDir(dir)
+    if not fs.exists("/var/kpkg") then
+        fs.makeDir("/var/kpkg")
     end
 
     local f = fs.open(DB_PATH, "w")
@@ -34,17 +33,14 @@ end
 -- HTTP
 -- =====================
 local function fetch(url)
-    if not http then
-        print("HTTP not enabled")
+    local h = http.get(url)
+    if not h then
+        print("Failed to fetch: " .. url)
         return nil
     end
 
-    local h = http.get(url)
-    if not h then return nil end
-
     local data = h.readAll()
     h.close()
-
     return data
 end
 
@@ -58,7 +54,11 @@ local function writeFile(path, content)
     end
 
     local f = fs.open(path, "w")
-    if not f then return false end
+    if not f then
+        print("Failed to write: " .. path)
+        return false
+    end
+
     f.write(content)
     f.close()
     return true
@@ -73,42 +73,11 @@ local function loadManifest(pkg)
 
     local fn, err = load(src)
     if not fn then
-        print("Manifest load error: " .. err)
+        print("Manifest load error: " .. tostring(err))
         return nil
     end
 
-    local ok, result = pcall(fn)
-    if not ok then
-        print("Manifest runtime error: " .. result)
-        return nil
-    end
-
-    return result
-end
-
--- =====================
--- SINGLE INSTALLER SUPPORT
--- =====================
-local function runSinglePackage(pkg)
-    local url = REPO .. "/single/" .. pkg .. ".lua"
-    local src = fetch(url)
-
-    if not src then return false end
-
-    print("Running installer for " .. pkg)
-
-    local fn, err = load(src)
-    if not fn then
-        print("Installer load error: " .. err)
-        return true
-    end
-
-    local ok, err = pcall(fn)
-    if not ok then
-        print("Installer runtime error: " .. err)
-    end
-
-    return true
+    return fn()
 end
 
 -- =====================
@@ -120,40 +89,33 @@ local function install(pkg, db)
         return
     end
 
-    -- 1. Try manifest package
     local manifest = loadManifest(pkg)
+    if not manifest then
+        print("Package not found: " .. pkg)
+        return
+    end
 
-    if manifest then
-        print("Installing " .. (manifest.name or pkg))
+    print("Installing " .. manifest.name)
 
-        for _, file in ipairs(manifest.files or {}) do
-            local data = fetch(REPO .. "/" .. pkg .. "/files/" .. file)
+    for _, file in ipairs(manifest.files or {}) do
+        local url = REPO .. "/" .. pkg .. "/files/" .. file
+        local data = fetch(url)
 
-            if data then
-                local path = "/" .. file
-                writeFile(path, data)
-                print(" + " .. file)
-            else
-                print(" ! failed: " .. file)
-            end
+        if data then
+            local path = "/" .. file
+            writeFile(path, data)
+            print(" + " .. file)
+        else
+            print(" ! Failed: " .. file)
         end
-
-        db[pkg] = {
-            version = manifest.version,
-            files = manifest.files
-        }
-
-        print("Installed " .. pkg)
-        return
     end
 
-    -- 2. Try single installer
-    if runSinglePackage(pkg) then
-        return
-    end
+    db[pkg] = {
+        version = manifest.version,
+        files = manifest.files
+    }
 
-    -- 3. Not found
-    print("Package not found: " .. pkg)
+    print("Installed " .. pkg)
 end
 
 -- =====================
@@ -166,7 +128,6 @@ local function remove(pkg, db)
     end
 
     local entry = db[pkg]
-
     if not entry then
         print("Package not installed: " .. pkg)
         return
@@ -176,7 +137,6 @@ local function remove(pkg, db)
 
     for _, file in ipairs(entry.files or {}) do
         local path = "/" .. file
-
         if fs.exists(path) then
             fs.delete(path)
             print(" - " .. file)
@@ -210,6 +170,7 @@ local function upgrade(db)
     end
 
     for _, pkg in ipairs(list) do
+        print("Updating " .. pkg)
         remove(pkg, db)
         install(pkg, db)
     end
@@ -218,7 +179,7 @@ local function upgrade(db)
 end
 
 -- =====================
--- CLI
+-- CLI PARSER
 -- =====================
 local db = loadDB()
 
@@ -238,18 +199,18 @@ if cmd == "-S" then
 elseif cmd == "-R" then
     remove(target, db)
 
-elseif cmd == "-Syu" then
+elseif has("-Syu") then
     upgrade(db)
 
-elseif cmd == "-Q" then
+elseif has("-Q") then
     query(db)
 
 else
     print("pacman usage:")
-    print("  pacman -S <pkg>")
-    print("  pacman -R <pkg>")
-    print("  pacman -Syu")
-    print("  pacman -Q")
+    print("  pacman -S <pkg>   Install package")
+    print("  pacman -R <pkg>   Remove package")
+    print("  pacman -Syu       Upgrade all packages")
+    print("  pacman -Q         List installed packages")
 end
 
 saveDB(db)
