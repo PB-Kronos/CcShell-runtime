@@ -1,1 +1,1 @@
-return 1.20
+return "1.20"
