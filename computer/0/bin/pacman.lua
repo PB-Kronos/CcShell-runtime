@@ -77,8 +77,8 @@ local function runPackage(code, name, ...)
 end
 
 local function runRemote(path, ...)
-    print("Running remote: " .. path)
     local code, err = fetch(REPO .. "/" .. path)
+    print("Running remote: " .. path, code)
     if not code then
         return false, err
     end
