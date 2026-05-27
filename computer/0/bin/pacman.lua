@@ -90,11 +90,31 @@ local function install(pkg, ...)
 
     local ok, err = runRemote(pkg .. "/install.lua", ...)
     if not ok then
-        return print("Install failed:", err)
+        print("Install failed:", err)
+        return
+    end
+
+    local version = "unknown"
+    local desc = "no description"
+
+    local vcode = fetch(REPO .. "/" .. pkg .. "/version.lua")
+    if vcode then
+        local fn = load(vcode, "@version.lua", "t", {})
+        if fn then
+            local ok, v = pcall(fn)
+            if ok then
+                if type(v) == "table" then
+                    version = v.version or version
+                    desc = v.desc or desc
+                else
+                    version = v
+                end
+            end
+        end
     end
 
     local db = loadDB()
-    db[pkg] = true
+    db[pkg] = { version = version, desc = desc }
     saveDB(db)
 
     print("Installed:", pkg)
@@ -106,12 +126,14 @@ local function remove(pkg, force)
     if db[pkg] and not force then
         print("Removing package:", pkg)
     elseif not force then
-        return print("Package not installed:", pkg)
+        print("Package not installed:", pkg)
+        return
     end
 
     local ok, err = runRemote(pkg .. "/remove.lua")
     if not ok then
-        return print("Remove failed:", err)
+        print("Remove failed:", err)
+        return
     end
 
     db[pkg] = nil
@@ -126,7 +148,11 @@ local function upgrade(pkg, ...)
     local code = fetch(REPO .. "/" .. path)
     if code then
         print("Running upgrade script for:", pkg)
-        return runPackage(code, path, ...)
+        local ok, err = runPackage(code, path, ...)
+        if not ok then
+            print("Upgrade failed:", err)
+        end
+        return
     end
 
     print("No upgrade script, reinstalling...")
@@ -138,19 +164,12 @@ local function list()
     local db = loadDB()
     print("Installed packages:")
 
-    for k in pairs(db) do
-        local version = "unknown"
-
-        local vcode = fetch(REPO .. "/" .. k .. "/version.lua")
-        if vcode then
-            local fn = load(vcode, "@version.lua", "t", {})
-            if fn then
-                local ok, v = pcall(fn)
-                if ok then version = v end
-            end
+    for k, v in pairs(db) do
+        if type(v) == "table" then
+            print("-", k, v.version or "unknown", "-", v.desc or "")
+        else
+            print("-", k, v or "unknown")
         end
-
-        print("-", k, version)
     end
 end
 
@@ -167,7 +186,11 @@ local function query(pkg)
 
     local ok, v = pcall(fn)
     if ok then
-        print(pkg .. " version:", v)
+        if type(v) == "table" then
+            print(pkg, v.version or "unknown", "-", v.desc or "")
+        else
+            print(pkg .. " version:", v)
+        end
     else
         print("Error reading version")
     end
@@ -188,22 +211,32 @@ local args = {...}
 local cmd = args[1]
 
 if cmd == "-S" then
-    install(args[2], table.unpack(args, 3))
+    for i = 2, #args do
+        install(args[i])
+    end
 
 elseif cmd == "-R" then
-    remove(args[2], false)
+    for i = 2, #args do
+        remove(args[i], false)
+    end
 
 elseif cmd == "-Rf" then
-    remove(args[2], true)
+    for i = 2, #args do
+        remove(args[i], true)
+    end
 
 elseif cmd == "-U" then
-    upgrade(args[2], table.unpack(args, 3))
+    for i = 2, #args do
+        upgrade(args[i])
+    end
 
 elseif cmd == "-Syu" then
     syncAll()
 
 elseif cmd == "-Q" then
-    query(args[2])
+    for i = 2, #args do
+        query(args[i])
+    end
 
 elseif cmd == "-L" then
     list()
