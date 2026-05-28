@@ -1,16 +1,38 @@
 from __future__ import annotations
 
+import os
 import shutil
 import urllib.request
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+CRAFTOS_ROOT = Path(os.path.expandvars(r"%APPDATA%")) / "CraftOS-PC"
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/PB-Kronos/CcShell-runtime/main"
 
 
 def _normalize(path: str) -> str:
     return path.replace("\\", "/")
+
+
+def _resolve_craftos_path(path: str) -> Path:
+    raw = _normalize(path).lstrip("/")
+    return (CRAFTOS_ROOT / raw).resolve()
+
+
+def _resolve_download_path(path: str) -> Path:
+    raw = _normalize(path)
+    if not raw:
+        return CRAFTOS_ROOT.resolve()
+
+    if raw.startswith("/"):
+        return _resolve_craftos_path(raw)
+
+    p = Path(raw)
+    if len(raw) >= 2 and raw[1] == ":":
+        return p
+
+    return _resolve_craftos_path(raw)
 
 
 def resolve_path(path: str) -> Path:
@@ -79,14 +101,17 @@ def move(src: str, dst: str) -> None:
 
 def download(src: str, dst: str) -> None:
     """
-    Download a file from the repo or a full URL into the host filesystem.
+    Download a file from the repo or a full URL into the CraftOS-PC root.
 
     - If src starts with http:// or https://, it is fetched directly.
     - Otherwise src is treated as a path inside the GitHub repo.
+    - Destinations beginning with / are rooted under %APPDATA%/CraftOS-PC.
+    - Destinations beginning with a Windows drive letter are written there directly.
+    - Other relative destinations are also rooted under %APPDATA%/CraftOS-PC.
     """
 
     url = src if src.startswith(("http://", "https://")) else f"{GITHUB_RAW_BASE}/{src.lstrip('/')}"
-    target = resolve_path(dst)
+    target = _resolve_download_path(dst)
     target.parent.mkdir(parents=True, exist_ok=True)
 
     with urllib.request.urlopen(url) as response:

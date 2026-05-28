@@ -14,6 +14,7 @@ except ModuleNotFoundError:
     bridgefs = None
 
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/PB-Kronos/CcShell-runtime/main"
+CRAFTOS_ROOT = Path(os.path.expandvars(r"%APPDATA%")) / "CraftOS-PC"
 
 # -------------------------
 # STATE
@@ -67,7 +68,13 @@ def host_list(path):
 def repo_download(src, dst):
     url = f"{GITHUB_RAW_BASE}/{src.lstrip('/')}"
     try:
-        target = Path(dst)
+        raw = dst.replace("\\", "/")
+        if raw.startswith("/"):
+            raw = raw.lstrip("/")
+        target = (CRAFTOS_ROOT / raw).resolve()
+        base = CRAFTOS_ROOT.resolve()
+        if target != base and base not in target.parents:
+            raise ValueError("destination must stay inside %APPDATA%/CraftOS-PC")
         target.parent.mkdir(parents=True, exist_ok=True)
         with urllib.request.urlopen(url) as response:
             target.write_bytes(response.read())
