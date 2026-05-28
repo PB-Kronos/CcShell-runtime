@@ -26,11 +26,36 @@ local function install()
     install_file("/var/cache/file.lua", "/bin/file.lua", "pkg/execute/file.lua")
 end
 
+local function ensure_startup_hook()
+    local hook = 'if fs.exists("/bin/execute.lua") then dofile("/bin/execute.lua") end'
+    local path = "/bin/startup.lua"
+
+    if not fs.exists(path) then
+        error("startup file not found: " .. path, 0)
+    end
+
+    local h = fs.open(path, "r")
+    local content = h.readAll()
+    h.close()
+
+    if not content:find(hook, 1, true) then
+        local w = fs.open(path, "a")
+        if not content:match("\n$") then
+            w.write("\n")
+        end
+        w.write(hook)
+        w.write("\n")
+        w.close()
+        print("Updated:", path)
+    end
+end
+
 if downloader then
     shell.run("wget https://raw.githubusercontent.com/PB-Kronos/CcShell-runtime/main/pkg/execute/execute.lua /home/download/execute.lua")
     shell.run("wget https://raw.githubusercontent.com/PB-Kronos/CcShell-runtime/main/pkg/execute/file.lua /home/download/file.lua")
 elseif downloader == false then
     install()
+    ensure_startup_hook()
 else
     error("download is nil")
 end
