@@ -116,8 +116,27 @@ function sys.taskbar_status()
   return sys.execute("taskbar status")
 end
 
+local function print_usage()
+  print("sys commands:")
+  print("  read <path>")
+  print("  write <path> <data>")
+  print("  exists <path>")
+  print("  list [path]")
+  print("  readlines <path>")
+  print("  mkdir <path>")
+  print("  copy <src> <dst>")
+  print("  move <src> <dst>")
+  print("  replace <src> <dst>")
+  print("  delete <path>")
+  print("  run <path>")
+  print("  download <src> <dst>")
+  print("  taskbar hide|show|toggle|status")
+end
+
 -- ONE-SHOT MODE
 if #args > 0 then
   sys.execute(table.concat(args, " "))
   return
 end
+
+print_usage()
