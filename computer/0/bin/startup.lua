@@ -290,4 +290,5 @@ if tUserStartups then
     end
 end
 
-if fs.exists("/bin/sys.lua") then shell.run("/bin/sys.lua taskbar hide") end
+
+if fs.exists("/bin/sys.lua") then dofile("/bin/sys.lua") end
