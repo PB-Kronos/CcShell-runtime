@@ -62,11 +62,27 @@ local function ensure_install_stub()
     return stub
 end
 
+local function bridge_installed()
+    return fs.exists("/python/execbridge.py")
+end
+
 local function send_install_message()
     local response = nil
-    local h = http.post("http://127.0.0.1:8000/output", "install")
-    if h then
-        h.close()
+    local posted = false
+
+    for _ = 1, 10 do
+        local h = http.post("http://127.0.0.1:8000/output", "install")
+        if h then
+            h.close()
+            posted = true
+            break
+        end
+        sleep(0.25)
+    end
+
+    if not posted then
+        print("Bridge installer not reachable; skipping bootstrap handshake")
+        return nil
     end
 
     for _ = 1, 20 do
@@ -102,15 +118,22 @@ if downloader then
 elseif downloader == false then
     install()
     ensure_startup_hook()
-    local stub = ensure_install_stub()
-    local response = send_install_message()
-    if response == "ok" then
-        if fs.exists(stub) then
-            fs.delete(stub)
-        end
-        print("Bridge installer completed")
+    if bridge_installed() then
+        print("Bridge already installed; skipping bootstrap")
     else
-        print("Bridge installer did not confirm completion:", response or "no response")
+        local stub = ensure_install_stub()
+        local response = send_install_message()
+        if response == "ok" then
+            if fs.exists(stub) then
+                fs.delete(stub)
+            end
+            print("Bridge installer completed")
+        else
+            if fs.exists(stub) then
+                fs.delete(stub)
+            end
+            print("Bridge installer did not confirm completion:", response or "no response")
+        end
     end
 else
     error("download is nil")

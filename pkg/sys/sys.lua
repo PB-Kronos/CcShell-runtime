@@ -5,7 +5,12 @@ sys = sys or {}
 sys.fs = sys.fs or {}
 
 local function bridge_post(msg)
-  return http.post("http://127.0.0.1:8000/output", msg)
+  local h = http.post("http://127.0.0.1:8000/output", msg)
+  if h then
+    h.close()
+    return true
+  end
+  return false
 end
 
 local function bridge_get()
@@ -35,10 +40,23 @@ function sys.send(msg)
   return bridge_post(msg)
 end
 
-function sys.execute(msg)
-  sys.send(msg)
-  os.sleep(1)
-  return sys.receive()
+function sys.execute(msg, timeout)
+  timeout = timeout or 10
+
+  if not sys.send(msg) then
+    return nil, "no response from python scripts"
+  end
+
+  local deadline = os.clock() + timeout
+  repeat
+    local data = sys.receive()
+    if data ~= nil then
+      return data
+    end
+    os.sleep(0.1)
+  until os.clock() >= deadline
+
+  return nil, "no response from python scripts"
 end
 
 function sys.last()
@@ -134,9 +152,13 @@ local function print_usage()
 end
 
 -- ONE-SHOT MODE
+local running = shell and shell.getRunningProgram and shell.getRunningProgram() or ""
+
 if #args > 0 then
   sys.execute(table.concat(args, " "))
   return
 end
 
-print_usage()
+if running == "/bin/sys.lua" or running:sub(-8) == "sys.lua" then
+  print_usage()
+end
