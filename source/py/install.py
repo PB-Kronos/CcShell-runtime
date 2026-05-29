@@ -5,7 +5,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 PY_ROOT = REPO_ROOT / "python"
 EXECBRIDGE_URL = "https://raw.githubusercontent.com/PB-Kronos/CcShell-runtime/main/source/py/execbridge.py"
 pending = None
