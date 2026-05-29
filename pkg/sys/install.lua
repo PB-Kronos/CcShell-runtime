@@ -3,6 +3,11 @@ local function download(src, dst)
 end
 
 local function install_file(cache_path, target_path, source_path)
+    local cache_dir = fs.getDir(cache_path)
+    if cache_dir and cache_dir ~= "" and not fs.exists(cache_dir) then
+        fs.makeDir(cache_dir)
+    end
+
     download(source_path, cache_path)
     if not fs.exists(cache_path) then
         error("download failed for " .. source_path, 0)
@@ -19,6 +24,29 @@ local function install_file(cache_path, target_path, source_path)
     end
 
     print("Installed:", target_path)
+end
+
+local function append_unique_line(path, line)
+    if not fs.exists(path) then
+        error("file not found: " .. path, 0)
+    end
+
+    local h = fs.open(path, "r")
+    local content = h.readAll()
+    h.close()
+
+    if content:find(line, 1, true) then
+        return false
+    end
+
+    local w = fs.open(path, "a")
+    if not content:match("\n$") then
+        w.write("\n")
+    end
+    w.write(line)
+    w.write("\n")
+    w.close()
+    return true
 end
 
 local function ensure_install_stub()
@@ -64,23 +92,7 @@ end
 local function ensure_startup_hook()
     local hook = 'if fs.exists("/bin/sys.lua") then dofile("/bin/sys.lua") end'
     local path = "/bin/startup.lua"
-
-    if not fs.exists(path) then
-        error("startup file not found: " .. path, 0)
-    end
-
-    local h = fs.open(path, "r")
-    local content = h.readAll()
-    h.close()
-
-    if not content:find(hook, 1, true) then
-        local w = fs.open(path, "a")
-        if not content:match("\n$") then
-            w.write("\n")
-        end
-        w.write(hook)
-        w.write("\n")
-        w.close()
+    if append_unique_line(path, hook) then
         print("Updated:", path)
     end
 end
